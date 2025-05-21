@@ -1,21 +1,23 @@
 package ru.smirnov;
 
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
 public class Message implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    int from;
+    String from;
     MessageTypes type;
     String data;
 
-    public Message(int from, MessageTypes type, String data) {
+    public Message(String from, MessageTypes type, String data) {
         this.from = from;
         this.type = type;
         this.data = data;
     }
 
-    public Message(int from, MessageTypes type) {
+    public Message(String from, MessageTypes type) {
         this(from, type, "");
     }
 
@@ -24,5 +26,17 @@ public class Message implements Serializable {
         return from + ";" + type + ";" + data;
     }
 
+    public static void sendMsg(ObjectOutputStream out, String from, MessageTypes type, String data) throws IOException {
+        synchronized (out) {
+            out.writeObject(new Message(from, type, data));
+            out.flush();
+        }
+    }
 
+    public void send(ObjectOutputStream out) throws IOException {
+        synchronized (out) {
+            out.writeObject(this);
+            out.flush();
+        }
+    }
 }

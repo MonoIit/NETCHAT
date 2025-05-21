@@ -4,11 +4,11 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 
 public class Session {
-    private static final int DEQUE_CAPASITY = 50;
+    private static final int DEQUE_CAPASITY = Integer.MAX_VALUE;
     private final BlockingDeque<Message> deque;
 
     public Session() {
-        deque = new LinkedBlockingDeque<>();
+        deque = new LinkedBlockingDeque<>(DEQUE_CAPASITY);
     }
 
     public Session(int size) {
@@ -21,7 +21,7 @@ public class Session {
 
     public Message getMessage() throws InterruptedException {
         if (!deque.isEmpty()) return deque.take();
-        return new Message(-1, MessageTypes.MT_NODATA);
+        return new Message("server", MessageTypes.MT_NODATA);
     }
 
 

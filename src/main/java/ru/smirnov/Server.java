@@ -9,9 +9,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Server {
-    public static final int PORT = 8080;
-    private static AtomicInteger maxID = new AtomicInteger(1);
-    private static Map<Integer, Session> sessionMap = new ConcurrentHashMap<>();
+    private static final Map<String, Session> sessionMap = new ConcurrentHashMap<>();
+    private static String serverName = "server";
+    private static Logger logger;
+    private static int PORT;
 
     private static Runnable processClient(Socket clientSocket) throws IOException {
         return () -> {
@@ -21,14 +22,15 @@ public class Server {
                 ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());
                 while (true) {
                     Message msg = (Message) in.readObject();
-                    System.out.println(msg.from + ": " + msg.type + ": " + msg.data);
+                    logger.log(serverName, (msg.from + ": " + msg.type + ": " + msg.data));
                     switch (msg.type) {
                         case MessageTypes.MT_INIT:
-                            int id = maxID.getAndIncrement();
-                            sessionMap.put(id, new Session());
-                            Message sendMessage = new Message(-1, MessageTypes.MT_INIT, String.valueOf(id));
-                            out.writeObject(sendMessage);
-                            out.flush();
+                            if (msg.from.isEmpty() || msg.from.equals(serverName) || sessionMap.containsKey(msg.from)) {
+                                Message.sendMsg(out, serverName, MessageTypes.MT_ERROR, "Это имя уже занято");
+                                break;
+                            }
+                            sessionMap.put(msg.from, new Session());
+                            Message.sendMsg(out, serverName, MessageTypes.MT_CONFIRM, "");
                             break;
                         case MessageTypes.MT_EXIT:
                             sessionMap.remove(msg.from);
@@ -40,25 +42,31 @@ public class Server {
                             }
                             break;
                         case MessageTypes.MT_GETDATA:
-                            Message sendMsg = sessionMap.get(msg.from).getMessage();
-                            out.writeObject(sendMsg);
-                            out.flush();
+                            sessionMap.get(msg.from).getMessage().send(out);
                             break;
                     }
                 }
-            } catch (OptionalDataException e) {
-                System.out.println("Exception length: " + e.length);
-                System.out.println("Is EOF: " + e.eof);
-                throw new RuntimeException(e);
             } catch (IOException | ClassNotFoundException | InterruptedException ex) {
                 throw new RuntimeException(ex);
+            } finally {
+                try {
+                    clientSocket.close();
+                    logger.log(serverName, "сервер разорвал подключение");
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
+
         };
     }
 
     public static void main(String[] args) throws IOException {
+        SettingsLoader settings = new SettingsLoader("settings.properties");
+        PORT = settings.getPort();
+        logger = Logger.getInstance();
+
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
-            System.out.printf("Сервер запущен на порту %s\n", PORT);
+            logger.logAndPrint(serverName, "Сервер запущен на порту " + PORT);
 
             while (true) {
                 new Thread(processClient(serverSocket.accept())).start();

@@ -1,55 +1,58 @@
 package ru.smirnov;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
 import java.util.Scanner;
 
 public class Main {
-    private static int clientID = 0;
+    private static String clientName = "";
     private static boolean isRunning = false;
+    private static int PORT;
+    private static Logger logger;
+
 
     public static void main(String[] args) throws IOException {
-        try {
-            Socket socket = new Socket("127.0.0.1", 8080);
-            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-            out.flush();
-            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
-            Scanner sc = new Scanner(System.in);
-            Message connectMessage = new Message(clientID, MessageTypes.MT_INIT);
-            out.writeObject(connectMessage);
-            out.flush();
-            try {
-                Message receiveMessage = (Message) in.readObject();
-                clientID = Integer.parseInt(receiveMessage.data);
-                isRunning = true;
-            } catch (ClassNotFoundException e) {
-                throw new RuntimeException(e);
+        SettingsLoader settings = new SettingsLoader("setting.settings.properties");
+        PORT = settings.getPort();
+        logger = Logger.getInstance();
+
+        try (Socket socket = new Socket("127.0.0.1", PORT);
+             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+             ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+             Scanner sc = new Scanner(System.in)
+        ) {
+
+            while (!isRunning) {
+                logger.logAndPrint("newClient", ("Введите имя:"));
+                clientName = sc.nextLine();
+                logger.log("newClient", clientName);
+                Message.sendMsg(out, clientName, MessageTypes.MT_INIT, "");
+                try {
+                    Message receiveMessage = (Message) in.readObject();
+                    if (receiveMessage.type == MessageTypes.MT_ERROR) {
+                        logger.logAndPrint("newClient", "Это имя уже занято");
+                        continue;
+                    }
+                    isRunning = true;
+                } catch (ClassNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             Thread proccesServer = getThread(out, in);
 
-            Thread.sleep(1000);
+            //Thread.sleep(1000);
             while (isRunning) {
-                String data = "efewf";
+                String data = sc.nextLine();
                 if (data.isEmpty()) continue;
-                Message sendMessage;
+                logger.log(clientName, data);
                 if (data.equals("/exit")) {
-                    sendMessage = new Message(clientID, MessageTypes.MT_EXIT);
-                    synchronized (out) {
-                        out.writeObject(sendMessage);
-                        out.flush();
-                    }
+                    Message.sendMsg(out, clientName, MessageTypes.MT_EXIT, "");
                     isRunning = false;
                     break;
                 }
                 else {
-                    sendMessage = new Message(clientID, MessageTypes.MT_DATA, data);
-                }
-                synchronized (out) {
-                    out.writeObject(sendMessage);
-                    out.flush();
+                    Message.sendMsg(out, clientName, MessageTypes.MT_DATA, data);
                 }
             }
 
@@ -63,15 +66,11 @@ public class Main {
         Thread proccesServer = new Thread(() -> {
             try {
                 while (isRunning) {
-                    Message sendMsg = new Message(clientID, MessageTypes.MT_GETDATA);
-                    synchronized (out) {
-                        out.writeObject(sendMsg);
-                        out.flush();
-                    }
+                    Message.sendMsg(out, clientName, MessageTypes.MT_GETDATA, "");
                     Message receiveMessage = (Message) in.readObject();
                     switch (receiveMessage.type) {
                         case MT_DATA:
-                            System.out.println(receiveMessage.from + ": " + receiveMessage.data);
+                            logger.logAndPrint(clientName, (receiveMessage.from + ": " + receiveMessage.data));
                             break;
                         default:
                             Thread.sleep(500);

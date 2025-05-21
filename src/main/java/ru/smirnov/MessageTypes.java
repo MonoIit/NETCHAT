@@ -5,5 +5,7 @@ public enum MessageTypes {
     MT_EXIT,
     MT_DATA,
     MT_GETDATA,
-    MT_NODATA
+    MT_NODATA,
+    MT_CONFIRM,
+    MT_ERROR
 }
