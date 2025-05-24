@@ -9,9 +9,9 @@ public class SettingsLoader {
 
     public SettingsLoader(String filename) {
         properties = new Properties();
-        try (InputStream input = getClass().getClassLoader().getResourceAsStream("settings.properties")) {
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(filename)) {
             if (input == null) {
-                System.out.println("Не удалось найти settings.properties");
+                System.out.println("Не удалось найти " + filename);
                 return;
             }
             properties.load(input);
